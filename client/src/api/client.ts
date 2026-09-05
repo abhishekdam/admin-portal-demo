@@ -1,9 +1,17 @@
+import { socket } from './socket.js';
+
 const BASE_URL = 'http://localhost:5001/api';
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(socket.id ? { 'x-socket-id': socket.id } : {}),
+    ...((options?.headers as Record<string, string>) || {}),
+  };
+
   const res = await fetch(`${BASE_URL}${endpoint}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
+    headers,
   });
   if (!res.ok) {
     const errorBody = await res.json().catch(() => ({}));

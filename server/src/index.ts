@@ -1,7 +1,9 @@
 import express from 'express';
+import http from 'http';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
+import { initSocket } from './socket.js';
 import { productsRouter } from './routes/products.js';
 import { ordersRouter } from './routes/orders.js';
 import { tasksRouter } from './routes/tasks.js';
@@ -10,6 +12,8 @@ import { Order } from './models/Order.js';
 import { Task } from './models/Task.js';
 
 const app = express();
+const server = http.createServer(app);
+const io = initSocket(server);
 const PORT = process.env.PORT || 5001;
 let MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/admin-portal';
 
@@ -123,8 +127,8 @@ async function startServer() {
 
     await seedData();
 
-    app.listen(PORT, () => {
-      console.log(`Server listening at http://localhost:${PORT}`);
+    server.listen(PORT, () => {
+      console.log(`Server listening with Socket.IO at http://localhost:${PORT}`);
     });
   } catch (err) {
     console.error('Failed to start server:', err);

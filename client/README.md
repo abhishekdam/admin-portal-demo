@@ -1,15 +1,16 @@
 # Admin Portal - Frontend Application
 
-A responsive, lightweight Single Page Application (SPA) built with React 18, TypeScript, Vite, and Tailwind CSS for the internal Admin Portal operations dashboard.
+A responsive, lightweight Single Page Application (SPA) built with React 18, TypeScript, Vite, Tailwind CSS, and Socket.IO for the internal Admin Portal operations dashboard.
 
 ---
 
 ## Table of Contents
 - [Architecture & Tech Stack](#architecture--tech-stack)
+- [Multi-Location Real-Time Sync (Socket.IO)](#multi-location-real-time-sync-socketio)
 - [Project Structure](#project-structure)
 - [Features & Views](#features--views)
 - [Component Breakdown & Modals](#component-breakdown--modals)
-- [API Client Helper](#api-client-helper)
+- [API Client & Socket Helpers](#api-client--socket-helpers)
 - [TypeScript Types](#typescript-types)
 - [Development & Build Commands](#development--build-commands)
 
@@ -17,12 +18,26 @@ A responsive, lightweight Single Page Application (SPA) built with React 18, Typ
 
 ## Architecture & Tech Stack
 
-- **React 18** with functional components and native hooks (`useState`, `useEffect`).
+- **React 18** with functional components and native hooks (`useState`, `useEffect`, `useRef`).
+- **Socket.IO Client 4.x** for instantaneous, bi-directional real-time data sync with other active terminals.
 - **Vite 5** for fast HMR and optimized production bundles.
 - **Tailwind CSS 3** for minimal, utility-first styling.
-- **Lucide React** for icons (`Package`, `ShoppingCart`, `CheckSquare`, `Plus`, `Minus`, `Pencil`, `Trash2`, `RotateCcw`, `Archive`, `AlertTriangle`).
+- **Lucide React** for iconography (`Package`, `ShoppingCart`, `CheckSquare`, `Plus`, `Minus`, `Pencil`, `Trash2`, `RotateCcw`, `Archive`, `AlertTriangle`, `Zap`).
 - **Non-Destructive Soft Delete Pattern**: Both inventory items and tasks support soft-delete with dedicated archived views and one-click restoration.
 - **Type-Safe API Layer**: Centralized API utility with standardized error handling and REST methods.
+
+---
+
+## Multi-Location Real-Time Sync (Socket.IO)
+
+When staff across different locations (warehouse, fulfillment, management) have the portal open simultaneously:
+1. **Live Connection Indicator in Header**:
+   - Displays a pulsing green badge (`● Live Synced`) when connected.
+   - Automatically switches to an amber badge (`○ Reconnecting...`) if the connection is interrupted and retries reconnecting in the background.
+2. **Subtle Sync Toast Notifications**:
+   - A floating toast in the bottom-right corner alerts staff when another location updates stock, reassigns tasks, changes order statuses, or archives items.
+3. **Zero-Refresh State Sync**:
+   - Changes made by other users reflect immediately in the live tables and counter badges without page reloads.
 
 ---
 
@@ -37,11 +52,12 @@ client/
 ├── tsconfig.json
 ├── vite.config.ts
 └── src/
-    ├── App.tsx                     # Main layout, tab navigation & state orchestrator
+    ├── App.tsx                     # Main layout, tab navigation, Socket.IO sync & toasts
     ├── index.css                   # Tailwind CSS imports & global resets
     ├── main.tsx                    # React DOM root mounting entrypoint
     ├── api/
-    │   └── client.ts               # Type-safe API communication helper
+    │   ├── client.ts               # Type-safe REST API helper
+    │   └── socket.ts               # Socket.IO client connection instance
     ├── components/
     │   ├── AddProductModal.tsx     # Modal form for registering new products
     │   ├── EditProductModal.tsx    # Modal form for updating product fields
@@ -63,6 +79,7 @@ client/
   - **Orders**: Active orders count.
   - **Tasks**: Count of pending non-deleted tasks.
 - Concurrent initial data hydration via `Promise.all([api.getProducts(), api.getOrders(), api.getTasks()])`.
+- Real-time event listeners for product, order, and task modifications.
 
 ---
 
@@ -71,8 +88,8 @@ client/
   - `Active (N)`: Live catalog view.
   - `Deleted (N)`: Soft-deleted items archive with an archived badge.
 - **Stock Threshold Alert**: Automatic amber badge when `stockQuantity <= lowStockThreshold`.
-- **Quick Stock Counter**: Inline `+` and `-` buttons for instant stock updates.
-- **Edit Product**: Clicking the pencil icon opens `EditProductModal` with pre-filled fields (SKU, name, category, price, stock quantity, low-stock threshold).
+- **Quick Stock Counter**: Inline `+` and `-` buttons for instant stock updates (backed by atomic database increments).
+- **Edit Product**: Clicking the pencil icon opens `EditProductModal` with pre-filled fields.
 - **Soft Delete**: Clicking the trash icon moves the product into the Deleted Items archive.
 - **Restore**: In the Deleted view, clicking the "Restore" button instantly reactivates the product back into the live inventory.
 
@@ -91,7 +108,7 @@ client/
   - `Processing` (Blue)
   - `Completed` (Emerald)
   - `Cancelled` (Slate)
-- Instant state updates sent via `PATCH /api/orders/:id/status`.
+- Instant state updates sent via `PATCH /api/orders/:id/status` and broadcasted via Socket.IO.
 
 ---
 
@@ -108,10 +125,9 @@ client/
 
 ---
 
-## API Client Helper (`src/api/client.ts`)
+## API Client & Socket Helpers
 
-A clean fetch wrapper configured for `http://localhost:5001/api`:
-
+### REST API Helper (`src/api/client.ts`)
 ```typescript
 export const api = {
   // Products
@@ -134,6 +150,17 @@ export const api = {
   restoreTask: (id: string) => Promise<ITask>
   updateTaskStatus: (id: string, status: TaskStatus) => Promise<ITask>
 }
+```
+
+### Socket.IO Client (`src/api/socket.ts`)
+```typescript
+import { io, Socket } from 'socket.io-client';
+
+export const socket: Socket = io('http://localhost:5001', {
+  autoConnect: true,
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+});
 ```
 
 ---

@@ -29,7 +29,10 @@ export const InventoryView: React.FC<Props> = ({ products, setProducts }) => {
 
   const handleAddProduct = async (productData: Omit<IProduct, '_id'>) => {
     const created = await api.createProduct(productData);
-    setProducts((prev) => [created, ...prev]);
+    setProducts((prev) => {
+      if (prev.some((p) => p._id === created._id)) return prev;
+      return [created, ...prev];
+    });
   };
 
   const handleUpdateProduct = async (id: string, updatedData: Partial<IProduct>) => {

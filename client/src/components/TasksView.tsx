@@ -30,7 +30,10 @@ export const TasksView: React.FC<Props> = ({ tasks, setTasks }) => {
         assignedTo,
         priority,
       });
-      setTasks((prev) => [created, ...prev]);
+      setTasks((prev) => {
+        if (prev.some((t) => t._id === created._id)) return prev;
+        return [created, ...prev];
+      });
       setTitle('');
       setDescription('');
       setAssignedTo('');

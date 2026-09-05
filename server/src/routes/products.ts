@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { Product } from '../models/Product.js';
+import { emitEvent } from '../socket.js';
 
 export const productsRouter = Router();
 
@@ -17,6 +18,7 @@ productsRouter.get('/', async (_req: Request, res: Response) => {
 productsRouter.post('/', async (req: Request, res: Response) => {
   try {
     const { sku, name, category, price, stockQuantity, lowStockThreshold } = req.body;
+    const senderSocketId = req.headers['x-socket-id'] as string;
     
     if (!sku || !name || !category || price === undefined) {
       return res.status(400).json({ message: 'Missing required product fields' });
@@ -32,6 +34,7 @@ productsRouter.post('/', async (req: Request, res: Response) => {
     });
 
     const saved = await newProduct.save();
+    emitEvent('product:created', saved, senderSocketId);
     res.status(201).json(saved);
   } catch (error: any) {
     if (error.code === 11000) {
@@ -46,6 +49,7 @@ productsRouter.patch('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { sku, name, category, price, stockQuantity, lowStockThreshold } = req.body;
+    const senderSocketId = req.headers['x-socket-id'] as string;
 
     const updateData: Record<string, any> = {};
     if (sku !== undefined) updateData.sku = sku.trim();
@@ -60,6 +64,7 @@ productsRouter.patch('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
+    emitEvent('product:updated', updatedProduct, senderSocketId);
     res.json(updatedProduct);
   } catch (error: any) {
     if (error.code === 11000) {
@@ -73,6 +78,7 @@ productsRouter.patch('/:id', async (req: Request, res: Response) => {
 productsRouter.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const senderSocketId = req.headers['x-socket-id'] as string;
     const product = await Product.findByIdAndUpdate(
       id,
       { isDeleted: true, deletedAt: new Date() },
@@ -83,6 +89,7 @@ productsRouter.delete('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
+    emitEvent('product:deleted', product, senderSocketId);
     res.json(product);
   } catch (error) {
     res.status(500).json({ message: 'Failed to delete product', error });
@@ -93,6 +100,7 @@ productsRouter.delete('/:id', async (req: Request, res: Response) => {
 productsRouter.patch('/:id/restore', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const senderSocketId = req.headers['x-socket-id'] as string;
     const product = await Product.findByIdAndUpdate(
       id,
       { isDeleted: false, deletedAt: null },
@@ -103,30 +111,45 @@ productsRouter.patch('/:id/restore', async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
+    emitEvent('product:restored', product, senderSocketId);
     res.json(product);
   } catch (error) {
     res.status(500).json({ message: 'Failed to restore product', error });
   }
 });
 
-// PATCH quick stock adjust
+// PATCH quick stock adjust using atomic $inc to guarantee concurrency safety
 productsRouter.patch('/:id/stock', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const delta = Number(req.body.delta ?? req.query.delta);
+    const senderSocketId = req.headers['x-socket-id'] as string;
 
     if (isNaN(delta)) {
       return res.status(400).json({ message: 'Valid stock adjustment delta required' });
     }
 
-    const product = await Product.findById(id);
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
+    const filter: any = { _id: id };
+    if (delta < 0) {
+      filter.stockQuantity = { $gte: Math.abs(delta) };
     }
 
-    product.stockQuantity = Math.max(0, product.stockQuantity + delta);
-    await product.save();
+    let product = await Product.findOneAndUpdate(
+      filter,
+      { $inc: { stockQuantity: delta } },
+      { new: true }
+    );
 
+    if (!product) {
+      const exists = await Product.findById(id);
+      if (!exists) {
+        return res.status(404).json({ message: 'Product not found' });
+      }
+      return res.status(400).json({ message: 'Stock cannot be reduced below 0', product: exists });
+    }
+
+    emitEvent('product:stock_adjusted', { product, delta }, senderSocketId);
+    emitEvent('product:updated', product, senderSocketId);
     res.json(product);
   } catch (error) {
     res.status(500).json({ message: 'Failed to adjust stock', error });

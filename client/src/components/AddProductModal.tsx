@@ -8,19 +8,27 @@ interface Props {
   onAdd: (product: Omit<IProduct, '_id'>) => Promise<void>;
 }
 
+const initialFormState = {
+  sku: '',
+  name: '',
+  category: 'Electronics',
+  price: '',
+  stockQuantity: '0',
+  lowStockThreshold: '5',
+};
+
 export const AddProductModal: React.FC<Props> = ({ isOpen, onClose, onAdd }) => {
-  const [form, setForm] = useState({
-    sku: '',
-    name: '',
-    category: 'Electronics',
-    price: '',
-    stockQuantity: '0',
-    lowStockThreshold: '5',
-  });
+  const [form, setForm] = useState(initialFormState);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   if (!isOpen) return null;
+
+  const handleClose = () => {
+    setForm(initialFormState);
+    setError('');
+    onClose();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +43,8 @@ export const AddProductModal: React.FC<Props> = ({ isOpen, onClose, onAdd }) => 
         stockQuantity: parseInt(form.stockQuantity, 10),
         lowStockThreshold: parseInt(form.lowStockThreshold, 10),
       });
+      setForm(initialFormState);
+      setError('');
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to add product');
@@ -47,7 +57,7 @@ export const AddProductModal: React.FC<Props> = ({ isOpen, onClose, onAdd }) => 
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 relative">
         <button
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
         >
           <X size={20} />
@@ -131,7 +141,7 @@ export const AddProductModal: React.FC<Props> = ({ isOpen, onClose, onAdd }) => 
           <div className="flex justify-end gap-2 pt-3 border-t">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 text-sm border rounded text-slate-600 hover:bg-slate-50"
             >
               Cancel
