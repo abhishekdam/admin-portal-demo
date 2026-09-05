@@ -1,5 +1,7 @@
 import express from 'express';
 import http from 'http';
+import path from 'path';
+import fs from 'fs';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
@@ -118,8 +120,17 @@ async function startServer() {
       await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 2000 });
       console.log('Connected to local MongoDB');
     } catch {
-      console.log('Local MongoDB not found. Starting embedded MongoDB server...');
-      const mongod = await MongoMemoryServer.create();
+      console.log('Local MongoDB not found. Starting embedded MongoDB with persistent storage...');
+      const dbPath = path.resolve('.mongodb_data');
+      if (!fs.existsSync(dbPath)) {
+        fs.mkdirSync(dbPath, { recursive: true });
+      }
+      const mongod = await MongoMemoryServer.create({
+        instance: {
+          dbPath,
+          storageEngine: 'wiredTiger',
+        },
+      });
       MONGODB_URI = mongod.getUri();
       await mongoose.connect(MONGODB_URI);
       console.log(`Connected to Embedded MongoDB at ${MONGODB_URI}`);

@@ -7,9 +7,10 @@ import { api } from '../api/client.js';
 interface Props {
   tasks: ITask[];
   setTasks: React.Dispatch<React.SetStateAction<ITask[]>>;
+  onRefresh?: () => void;
 }
 
-export const TasksView: React.FC<Props> = ({ tasks, setTasks }) => {
+export const TasksView: React.FC<Props> = ({ tasks, setTasks, onRefresh }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
@@ -54,6 +55,7 @@ export const TasksView: React.FC<Props> = ({ tasks, setTasks }) => {
       setTasks((prev) => prev.map((t) => (t._id === id ? deleted : t)));
     } catch (err) {
       console.error(err);
+      if (onRefresh) onRefresh();
     }
   };
 
@@ -63,6 +65,7 @@ export const TasksView: React.FC<Props> = ({ tasks, setTasks }) => {
       setTasks((prev) => prev.map((t) => (t._id === id ? restored : t)));
     } catch (err) {
       console.error(err);
+      if (onRefresh) onRefresh();
     }
   };
 

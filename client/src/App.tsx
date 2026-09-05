@@ -31,24 +31,25 @@ export function App() {
     }, 3500);
   };
 
-  // Initial Data Fetch
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [p, o, t] = await Promise.all([
-          api.getProducts(),
-          api.getOrders(),
-          api.getTasks(),
-        ]);
-        setProducts(p);
-        setOrders(o);
-        setTasks(t);
-      } catch (err) {
-        console.error('Failed to load initial data:', err);
-      } finally {
-        setLoading(false);
-      }
+  // Initial & Reconnect Data Fetch
+  const loadData = async () => {
+    try {
+      const [p, o, t] = await Promise.all([
+        api.getProducts(),
+        api.getOrders(),
+        api.getTasks(),
+      ]);
+      setProducts(p);
+      setOrders(o);
+      setTasks(t);
+    } catch (err) {
+      console.error('Failed to load portal data:', err);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadData();
   }, []);
 
@@ -56,6 +57,7 @@ export function App() {
   useEffect(() => {
     const handleConnect = () => {
       setIsConnected(true);
+      loadData(); // Ensure state is synchronized with server upon connect or reconnect
     };
 
     const handleDisconnect = () => {
@@ -269,13 +271,13 @@ export function App() {
         ) : (
           <>
             {activeTab === 'inventory' && (
-              <InventoryView products={products} setProducts={setProducts} />
+              <InventoryView products={products} setProducts={setProducts} onRefresh={loadData} />
             )}
             {activeTab === 'orders' && (
               <OrdersView orders={orders} setOrders={setOrders} />
             )}
             {activeTab === 'tasks' && (
-              <TasksView tasks={tasks} setTasks={setTasks} />
+              <TasksView tasks={tasks} setTasks={setTasks} onRefresh={loadData} />
             )}
           </>
         )}

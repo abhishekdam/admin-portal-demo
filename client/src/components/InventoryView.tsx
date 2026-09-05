@@ -8,9 +8,10 @@ import { api } from '../api/client.js';
 interface Props {
   products: IProduct[];
   setProducts: React.Dispatch<React.SetStateAction<IProduct[]>>;
+  onRefresh?: () => void;
 }
 
-export const InventoryView: React.FC<Props> = ({ products, setProducts }) => {
+export const InventoryView: React.FC<Props> = ({ products, setProducts, onRefresh }) => {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<IProduct | null>(null);
   const [viewTab, setViewTab] = useState<'active' | 'deleted'>('active');
@@ -24,6 +25,7 @@ export const InventoryView: React.FC<Props> = ({ products, setProducts }) => {
       setProducts((prev) => prev.map((p) => (p._id === id ? updated : p)));
     } catch (err) {
       console.error(err);
+      if (onRefresh) onRefresh();
     }
   };
 
@@ -46,6 +48,7 @@ export const InventoryView: React.FC<Props> = ({ products, setProducts }) => {
       setProducts((prev) => prev.map((p) => (p._id === id ? deleted : p)));
     } catch (err) {
       console.error(err);
+      if (onRefresh) onRefresh();
     }
   };
 
@@ -55,6 +58,7 @@ export const InventoryView: React.FC<Props> = ({ products, setProducts }) => {
       setProducts((prev) => prev.map((p) => (p._id === id ? restored : p)));
     } catch (err) {
       console.error(err);
+      if (onRefresh) onRefresh();
     }
   };
 
